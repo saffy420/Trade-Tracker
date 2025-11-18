@@ -1,0 +1,66 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="using:Tracker.Avalonia.ViewModels"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        mc:Ignorable="d" d:DesignWidth="500" d:DesignHeight="300"
+        x:Class="Tracker.Avalonia.Views.TradeEditorDialog"
+        x:DataType="vm:TradeEditorViewModel"
+        Title="Edit Trade"
+        Width="500" Height="300"
+        Background="#14141E"
+        WindowStartupLocation="CenterOwner"
+        CanResize="False">
+
+    <Grid RowDefinitions="Auto,*,Auto" Margin="20">
+        <!-- Title -->
+        <TextBlock Grid.Row="0" 
+                   Text="Edit Trade Details" 
+                   FontSize="18" 
+                   FontWeight="Bold"
+                   Foreground="Cyan"
+                   Margin="0,0,0,20"/>
+
+        <!-- Form Fields -->
+        <StackPanel Grid.Row="1" Spacing="15">
+            <StackPanel>
+                <TextBlock Text="Game Name:" 
+                          Foreground="White" 
+                          Margin="0,0,0,5"/>
+                <TextBox Text="{Binding GameName}" 
+                        Watermark="e.g., Team A @ Team B"
+                        FontSize="14"/>
+            </StackPanel>
+
+            <StackPanel>
+                <TextBlock Text="Market/Trade Type:" 
+                          Foreground="White" 
+                          Margin="0,0,0,5"/>
+                <TextBox Text="{Binding Market}" 
+                        Watermark="e.g., Over 2.5 Goals"
+                        FontSize="14"/>
+            </StackPanel>
+
+            <TextBlock Text="{Binding ErrorMessage}" 
+                      Foreground="Red" 
+                      IsVisible="{Binding HasError}"
+                      TextWrapping="Wrap"/>
+        </StackPanel>
+
+        <!-- Buttons -->
+        <StackPanel Grid.Row="2" 
+                   Orientation="Horizontal" 
+                   HorizontalAlignment="Right" 
+                   Spacing="10"
+                   Margin="0,20,0,0">
+            <Button Content="Cancel" 
+                    Width="100"
+                    Click="CancelButton_Click"/>
+            <Button Content="Save" 
+                    Width="100"
+                    Command="{Binding SaveCommand}"
+                    Background="#2E7D32"/>
+        </StackPanel>
+    </Grid>
+</Window>
+

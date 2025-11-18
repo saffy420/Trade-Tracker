@@ -134,6 +134,36 @@ public partial class MainWindowViewModel : ViewModelBase
     }
 
     [RelayCommand]
+    private async Task EditTrade(Trade trade)
+    {
+        try
+        {
+            var editorViewModel = new TradeEditorViewModel(trade, async (oldTrade, newTrade) =>
+            {
+                await _tradeStorage.UpdateTradeAsync(oldTrade, newTrade);
+                StatusMessage = $"Updated: {newTrade.Game} | {newTrade.Market}";
+                await LoadTradesAsync();
+            });
+
+            var editorWindow = new Views.TradeEditorDialog
+            {
+                DataContext = editorViewModel
+            };
+
+            // Get the main window from application lifetime
+            if (global::Avalonia.Application.Current?.ApplicationLifetime is global::Avalonia.Controls.ApplicationLifetimes.IClassicDesktopStyleApplicationLifetime desktop)
+            {
+                await editorWindow.ShowDialog(desktop.MainWindow);
+            }
+        }
+        catch (Exception ex)
+        {
+            Log.Error(ex, "Error editing trade");
+            StatusMessage = $"Error editing trade: {ex.Message}";
+        }
+    }
+
+    [RelayCommand]
     private async Task ClearFilter()
     {
         CurrentFilterGame = null;

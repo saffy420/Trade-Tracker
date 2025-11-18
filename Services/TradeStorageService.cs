@@ -190,6 +190,60 @@ public class TradeStorageService : ITradeStorageService, IDisposable
         }
     }
 
+    public async Task UpdateTradeAsync(Trade oldTrade, Trade newTrade)
+    {
+        await _fileLock.WaitAsync();
+        try
+        {
+            if (!File.Exists(_tradesFilePath)) return;
+
+            var lines = (await File.ReadAllLinesAsync(_tradesFilePath)).ToList();
+            var updated = new List<string>();
+            bool foundAndUpdated = false;
+
+            for (int i = 0; i < lines.Count; i += 2)
+            {
+                if (i + 1 >= lines.Count)
+                {
+                    updated.Add(lines[i]);
+                    break;
+                }
+
+                string fileGame = lines[i].Trim();
+                string fileMarket = lines[i + 1].Trim();
+
+                var fileTrade = new Trade { Game = fileGame, Market = fileMarket };
+
+                if (!foundAndUpdated && fileTrade.Equals(oldTrade))
+                {
+                    // Replace with new trade
+                    updated.Add(newTrade.Game);
+                    updated.Add(newTrade.Market);
+                    foundAndUpdated = true;
+                }
+                else
+                {
+                    // Keep existing
+                    updated.Add(lines[i]);
+                    updated.Add(lines[i + 1]);
+                }
+            }
+
+            await File.WriteAllLinesAsync(_tradesFilePath, updated);
+            Log.Information("Updated trade from '{OldGame}|{OldMarket}' to '{NewGame}|{NewMarket}'", 
+                oldTrade.Game, oldTrade.Market, newTrade.Game, newTrade.Market);
+        }
+        catch (Exception ex)
+        {
+            Log.Error(ex, "Error updating trade");
+            throw;
+        }
+        finally
+        {
+            _fileLock.Release();
+        }
+    }
+
     public async Task<Dictionary<string, List<Trade>>> GetTradesByGameAsync()
     {
         var trades = await LoadAllTradesAsync();
