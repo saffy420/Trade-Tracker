@@ -19,6 +19,9 @@ public class MacroService : IMacroService
     private volatile bool _abortF2 = false;
 
     public event EventHandler<string>? StatusUpdated;
+    public event EventHandler<WindowMoveEventArgs>? WindowMoveRequested;
+    public event EventHandler? WindowRestoreRequested;
+    public event EventHandler<string>? FilterGameRequested;
 
     public MacroService(
         ICoordinateProvider coords,
@@ -61,8 +64,10 @@ public class MacroService : IMacroService
             else
             {
                 // Fallback click
-                await _mouse.LeftClickAsync(1540, 484);
-                UpdateStatus("Fallback: Clicked (1540, 484).");
+                var fallbackX = _coords.GetInt("F1Macro", "PlaceTradeFallbackX");
+                var fallbackY = _coords.GetInt("F1Macro", "PlaceTradeFallbackY");
+                await _mouse.LeftClickAsync(fallbackX, fallbackY);
+                UpdateStatus($"Fallback: Clicked ({fallbackX}, {fallbackY}).");
             }
 
             // 2. Triple-click and copy Game Name
@@ -129,6 +134,7 @@ public class MacroService : IMacroService
     {
         _abortF2 = false;
         UpdateStatus("F2 Macro Started.");
+        bool windowMoved = false;
 
         try
         {
@@ -152,6 +158,23 @@ public class MacroService : IMacroService
             }
             UpdateStatus($"Copied Game: [{game}]");
 
+            // 2.5. Move and resize UI temporarily
+            var uiMoveX = _coords.GetInt("F2Macro", "UiMoveX");
+            var uiMoveY = _coords.GetInt("F2Macro", "UiMoveY");
+            var uiResizeW = _coords.GetInt("F2Macro", "UiResizeWidth");
+            var uiResizeH = _coords.GetInt("F2Macro", "UiResizeHeight");
+            
+            WindowMoveRequested?.Invoke(this, new WindowMoveEventArgs
+            {
+                X = uiMoveX,
+                Y = uiMoveY,
+                Width = uiResizeW,
+                Height = uiResizeH
+            });
+            windowMoved = true;
+            UpdateStatus($"Moved UI to ({uiMoveX}, {uiMoveY}).");
+            await Task.Delay(100); // Give window time to move
+
             // 3. Validate game for filtering
             if (string.IsNullOrEmpty(game) || !game.Contains("@"))
             {
@@ -159,6 +182,8 @@ public class MacroService : IMacroService
                 return;
             }
 
+            // 3.5. Filter the trade tracker to show only this game's trades
+            FilterGameRequested?.Invoke(this, game);
             UpdateStatus($"🔍 F2: Filtering by game -> [{game}]");
 
             // 4. Wait for page load - check for "Clear" and OCR box text
@@ -167,10 +192,8 @@ public class MacroService : IMacroService
             bool foundClear = false;
             bool foundOcrText = false;
 
-            var searchX = _coords.GetInt("F2Macro", "SearchX");
-            var searchY = _coords.GetInt("F2Macro", "SearchY");
-            var clearRelX = _coords.GetInt("F2Macro", "ClearAllRelX");
-            var clearRelY = _coords.GetInt("F2Macro", "ClearAllRelY");
+            var clearX = _coords.GetInt("F2Macro", "ClearAllX");
+            var clearY = _coords.GetInt("F2Macro", "ClearAllY");
             var clearW = _coords.GetInt("F2Macro", "ClearAllWidth");
             var clearH = _coords.GetInt("F2Macro", "ClearAllHeight");
 
@@ -189,7 +212,7 @@ public class MacroService : IMacroService
 
                 if (!foundClear)
                 {
-                    foundClear = await _ocr.FindTextInRegionAsync("Clear", searchX + clearRelX, searchY + clearRelY, clearW, clearH);
+                    foundClear = await _ocr.FindTextInRegionAsync("Clear", clearX, clearY, clearW, clearH);
                     if (foundClear) UpdateStatus("'Clear' detected.");
                 }
 
@@ -277,6 +300,15 @@ public class MacroService : IMacroService
         {
             Log.Error(ex, "F2 Macro error");
             UpdateStatus($"F2 Macro Error: {ex.Message}");
+        }
+        finally
+        {
+            // Restore window if it was moved
+            if (windowMoved)
+            {
+                WindowRestoreRequested?.Invoke(this, EventArgs.Empty);
+                UpdateStatus("Restored UI position.");
+            }
         }
     }
 

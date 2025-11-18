@@ -13,6 +13,7 @@ public interface ITradeStorageService
     Task RemoveTradeAsync(Trade trade);
     Task UpdateTradeAsync(Trade oldTrade, Trade newTrade);
     Task<Dictionary<string, List<Trade>>> GetTradesByGameAsync();
+    Task ClearAllTradesAsync();
     string TradesFilePath { get; }
 }
 

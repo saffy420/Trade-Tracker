@@ -1,3 +1,6 @@
+using System;
+using System.ComponentModel;
+using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Interactivity;
@@ -11,33 +14,33 @@ public partial class MainWindow : Window
     {
         InitializeComponent();
         
-        // Handle global key events for F1, F2, F3, Escape
-        KeyDown += OnKeyDown;
+        // Set initial position
+        Position = new PixelPoint(0, 0);
+        
+        // Subscribe to DataContext changes
+        DataContextChanged += OnDataContextChanged;
+        
+        // Note: Global hotkeys are now handled by the GlobalHotkeyService
+        // which works even when the window doesn't have focus
     }
 
-    private async void OnKeyDown(object? sender, KeyEventArgs e)
+    private void OnDataContextChanged(object? sender, EventArgs e)
+    {
+        if (DataContext is MainWindowViewModel viewModel)
+        {
+            viewModel.PropertyChanged += OnViewModelPropertyChanged;
+        }
+    }
+
+    private void OnViewModelPropertyChanged(object? sender, PropertyChangedEventArgs e)
     {
         if (DataContext is not MainWindowViewModel viewModel)
             return;
 
-        switch (e.Key)
+        if (e.PropertyName == nameof(MainWindowViewModel.WindowX) || 
+            e.PropertyName == nameof(MainWindowViewModel.WindowY))
         {
-            case Key.F1:
-                e.Handled = true;
-                await viewModel.RunF1MacroCommand.ExecuteAsync(null);
-                break;
-            case Key.F2:
-                e.Handled = true;
-                await viewModel.RunF2MacroCommand.ExecuteAsync(null);
-                break;
-            case Key.F3:
-                e.Handled = true;
-                await viewModel.RunF3MacroCommand.ExecuteAsync(null);
-                break;
-            case Key.Escape:
-                e.Handled = true;
-                await viewModel.ClearFilterCommand.ExecuteAsync(null);
-                break;
+            Position = new PixelPoint(viewModel.WindowX, viewModel.WindowY);
         }
     }
 

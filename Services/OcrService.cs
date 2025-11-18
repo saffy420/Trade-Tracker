@@ -21,9 +21,22 @@ public class OcrService : IOcrService
         _screenCapture = screenCapture;
         _tessDataPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "tessdata");
 
+        // Verify tessdata exists
         if (!Directory.Exists(_tessDataPath))
         {
-            Log.Warning("tessdata folder not found at {Path}", _tessDataPath);
+            Log.Error("tessdata folder not found at {Path} - OCR will not work!", _tessDataPath);
+        }
+        else
+        {
+            var engFile = Path.Combine(_tessDataPath, "eng.traineddata");
+            if (!File.Exists(engFile))
+            {
+                Log.Error("eng.traineddata not found at {Path} - OCR will not work!", engFile);
+            }
+            else
+            {
+                Log.Information("Tesseract initialized successfully with tessdata at {Path}", _tessDataPath);
+            }
         }
     }
 
@@ -83,15 +96,101 @@ public class OcrService : IOcrService
     {
         try
         {
-            var text = await RecognizeTextFromRegionAsync(x, y, width, height);
-            bool found = text.Contains(searchText, StringComparison.OrdinalIgnoreCase);
-            Log.Debug("Search for '{SearchText}' in region: {Found}", searchText, found);
+            // Capture the region
+            var imageBytes = await _screenCapture.CaptureRegionAsync(x, y, width, height);
+            if (imageBytes == null || imageBytes.Length == 0)
+            {
+                Log.Warning("Screen capture returned empty image for region ({X},{Y}) {W}x{H}", x, y, width, height);
+                return false;
+            }
+            
+            // Preprocess for better OCR
+            var processedBytes = PreprocessForButton(imageBytes);
+            
+            // Run OCR
+            var text = await RecognizeTextDirectAsync(processedBytes);
+            
+            // Check if searchText is contained in the result (case-insensitive, trimmed)
+            var cleanText = text.Replace(" ", "").Replace("\n", "").Replace("\r", "").ToLowerInvariant();
+            var cleanSearch = searchText.Replace(" ", "").ToLowerInvariant();
+            bool found = cleanText.Contains(cleanSearch);
+            
+            Log.Information("OCR Search - Region: ({X},{Y}) {W}x{H} | Found text: '{Text}' | Searching for: '{SearchText}' | Match: {Found}", 
+                x, y, width, height, text, searchText, found);
             return found;
         }
         catch (Exception ex)
         {
-            Log.Error(ex, "Error finding text in region");
+            Log.Error(ex, "Error finding text in region ({X},{Y}) {W}x{H}", x, y, width, height);
             return false;
+        }
+    }
+
+    private async Task<string> RecognizeTextDirectAsync(byte[] imageBytes)
+    {
+        return await Task.Run(() =>
+        {
+            try
+            {
+                if (!Directory.Exists(_tessDataPath))
+                {
+                    Log.Error("Cannot perform OCR - tessdata folder missing at {Path}", _tessDataPath);
+                    return string.Empty;
+                }
+
+                var tempFile = Path.GetTempFileName() + ".png";
+                File.WriteAllBytes(tempFile, imageBytes);
+
+                try
+                {
+                    using var engine = new TesseractEngine(_tessDataPath, "eng", EngineMode.Default);
+                    using var img = Pix.LoadFromFile(tempFile);
+                    using var page = engine.Process(img);
+                    
+                    string text = page.GetText().Trim();
+                    Log.Debug("OCR result: '{Text}'", text);
+                    return text;
+                }
+                finally
+                {
+                    if (File.Exists(tempFile))
+                        File.Delete(tempFile);
+                }
+            }
+            catch (Exception ex)
+            {
+                Log.Error(ex, "Error performing OCR - check if tessdata/eng.traineddata exists");
+                return string.Empty;
+            }
+        });
+    }
+
+    private byte[] PreprocessForButton(byte[] imageBytes)
+    {
+        try
+        {
+            using var image = Image.Load<Rgba32>(imageBytes);
+            
+            // Scale up 4x for better OCR on small button text
+            var scale = 4;
+            var newWidth = image.Width * scale;
+            var newHeight = image.Height * scale;
+            
+            image.Mutate(ctx => ctx
+                .Resize(newWidth, newHeight)           // Upscale 4x
+                .Grayscale()                           // Convert to grayscale
+                .BinaryThreshold(0.65f)                // High contrast
+                .Pad(30, 30, Color.White)              // Add white padding for context
+            );
+
+            using var ms = new MemoryStream();
+            image.SaveAsPng(ms);
+            return ms.ToArray();
+        }
+        catch (Exception ex)
+        {
+            Log.Warning(ex, "Error preprocessing image, using original");
+            return imageBytes;
         }
     }
 

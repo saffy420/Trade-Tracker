@@ -7,13 +7,14 @@
         x:Class="Tracker.Avalonia.Views.MainWindow"
         x:DataType="vm:MainWindowViewModel"
         Title="Trade Monitor"
-        Width="540" Height="900"
+        Width="{Binding WindowWidth, Mode=TwoWay}"
+        Height="{Binding WindowHeight, Mode=TwoWay}"
         Background="#14141E"
         TransparencyLevelHint="None"
         ExtendClientAreaToDecorationsHint="True"
         ExtendClientAreaChromeHints="NoChrome"
         SystemDecorations="None"
-        Topmost="True"
+        Topmost="{Binding IsTopmost}"
         CanResize="True">
 
     <Window.Styles>
@@ -33,7 +34,7 @@
     <Grid RowDefinitions="50,*,40">
         <!-- Custom Title Bar -->
         <Border Grid.Row="0" Background="#1E1E2E" PointerPressed="TitleBar_PointerPressed">
-            <Grid ColumnDefinitions="*,Auto,Auto,Auto">
+            <Grid ColumnDefinitions="*,Auto,Auto,Auto,Auto">
                 <TextBlock Grid.Column="0" 
                           Text="Trade Monitor" 
                           VerticalAlignment="Center" 
@@ -52,8 +53,17 @@
                               Width="16" Height="16" Foreground="White"/>
                 </Button>
                 
-                <!-- Minimize Button -->
+                <!-- Clear All Trades Button -->
                 <Button Grid.Column="2" 
+                        Classes="title-bar"
+                        ToolTip.Tip="Clear All Trades"
+                        Command="{Binding ClearAllTradesCommand}">
+                    <PathIcon Data="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z" 
+                              Width="16" Height="16" Foreground="White"/>
+                </Button>
+                
+                <!-- Minimize Button -->
+                <Button Grid.Column="3" 
                         Classes="title-bar"
                         Click="MinimizeButton_Click"
                         ToolTip.Tip="Minimize">
@@ -61,7 +71,7 @@
                 </Button>
                 
                 <!-- Close Button -->
-                <Button Grid.Column="3" 
+                <Button Grid.Column="4" 
                         Classes="title-bar"
                         Click="CloseButton_Click"
                         ToolTip.Tip="Close">

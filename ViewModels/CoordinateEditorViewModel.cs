@@ -13,9 +13,10 @@ namespace Tracker.Avalonia.ViewModels;
 public partial class CoordinateEditorViewModel : ViewModelBase
 {
     private readonly CoordinateConfigService _coordService;
+    private ObservableCollection<CoordinateEntry> _allCoordinates = new(); // Full list (not filtered)
 
     [ObservableProperty]
-    private ObservableCollection<CoordinateEntry> _coordinates = new();
+    private ObservableCollection<CoordinateEntry> _coordinates = new(); // Displayed list (may be filtered)
 
     [ObservableProperty]
     private CoordinateEntry? _selectedCoordinate;
@@ -26,9 +27,13 @@ public partial class CoordinateEditorViewModel : ViewModelBase
     [ObservableProperty]
     private string _searchText = string.Empty;
 
+    [ObservableProperty]
+    private string _configFilePath = string.Empty;
+
     public CoordinateEditorViewModel(CoordinateConfigService coordService)
     {
         _coordService = coordService;
+        ConfigFilePath = coordService.GetConfigFilePath();
         LoadCoordinates();
     }
 
@@ -45,7 +50,8 @@ public partial class CoordinateEditorViewModel : ViewModelBase
             AddEntriesFromDict(entries, "F3Macro", config.F3Macro);
             AddEntriesFromDict(entries, "General", config.General);
 
-            Coordinates = entries;
+            _allCoordinates = entries;
+            Coordinates = new ObservableCollection<CoordinateEntry>(entries); // Show all by default
             StatusMessage = $"Loaded {entries.Count} coordinates";
         }
         catch (Exception ex)
@@ -73,11 +79,15 @@ public partial class CoordinateEditorViewModel : ViewModelBase
     {
         try
         {
-            // Rebuild config from entries
+            Log.Information("Starting coordinate save operation with {Count} total entries", _allCoordinates.Count);
+
+            // Rebuild config from ALL entries (not just filtered/displayed ones)
             var config = new CoordinateConfig();
 
-            foreach (var entry in Coordinates)
+            foreach (var entry in _allCoordinates)
             {
+                Log.Debug("Processing entry: {Category}.{Key} = {Value}", entry.Category, entry.Key, entry.Value);
+
                 var dict = entry.Category switch
                 {
                     "F1Macro" => config.F1Macro,
@@ -91,11 +101,18 @@ public partial class CoordinateEditorViewModel : ViewModelBase
                 {
                     dict[entry.Key] = entry.Value;
                 }
+                else
+                {
+                    Log.Warning("Unknown category: {Category}", entry.Category);
+                }
             }
+
+            Log.Information("Built config with F1Macro={F1Count}, F2Macro={F2Count}, F3Macro={F3Count}, General={GCount}",
+                config.F1Macro.Count, config.F2Macro.Count, config.F3Macro.Count, config.General.Count);
 
             await _coordService.SaveConfigAsync(config);
             StatusMessage = "✅ Coordinates saved successfully";
-            Log.Information("Coordinates saved");
+            Log.Information("Coordinates saved successfully to file");
         }
         catch (Exception ex)
         {
@@ -115,6 +132,9 @@ public partial class CoordinateEditorViewModel : ViewModelBase
                 Key = "NewCoordinate",
                 Value = 0
             };
+            
+            // Add to both the full list and the displayed list
+            _allCoordinates.Add(newEntry);
             Coordinates.Add(newEntry);
             SelectedCoordinate = newEntry;
             StatusMessage = "Added new coordinate - remember to save!";
@@ -131,10 +151,19 @@ public partial class CoordinateEditorViewModel : ViewModelBase
     {
         try
         {
-            if (entry != null && Coordinates.Contains(entry))
+            if (entry != null)
             {
-                Coordinates.Remove(entry);
+                // Remove from both the full list and the displayed list
+                if (_allCoordinates.Contains(entry))
+                {
+                    _allCoordinates.Remove(entry);
+                }
+                if (Coordinates.Contains(entry))
+                {
+                    Coordinates.Remove(entry);
+                }
                 StatusMessage = $"Deleted {entry.FullKey} - remember to save!";
+                Log.Information("Deleted coordinate: {FullKey}", entry.FullKey);
             }
         }
         catch (Exception ex)
@@ -170,17 +199,20 @@ public partial class CoordinateEditorViewModel : ViewModelBase
     {
         if (string.IsNullOrWhiteSpace(SearchText))
         {
-            LoadCoordinates();
+            // Show all coordinates when search is cleared
+            Coordinates = new ObservableCollection<CoordinateEntry>(_allCoordinates);
+            StatusMessage = $"Showing all {_allCoordinates.Count} coordinates";
             return;
         }
 
-        var filtered = Coordinates
+        // Always search from the full list, not the currently displayed list
+        var filtered = _allCoordinates
             .Where(c => c.Key.Contains(SearchText, StringComparison.OrdinalIgnoreCase) ||
                        c.Category.Contains(SearchText, StringComparison.OrdinalIgnoreCase))
             .ToList();
 
         Coordinates = new ObservableCollection<CoordinateEntry>(filtered);
-        StatusMessage = $"Found {filtered.Count} matches";
+        StatusMessage = $"Found {filtered.Count} matches for '{SearchText}'";
     }
 
     [RelayCommand]
@@ -189,13 +221,46 @@ public partial class CoordinateEditorViewModel : ViewModelBase
         try
         {
             await _coordService.ReloadAsync();
+            
+            // Clear search text and reload all coordinates
+            SearchText = string.Empty;
             LoadCoordinates();
+            
             StatusMessage = "✅ Reloaded from file";
         }
         catch (Exception ex)
         {
             Log.Error(ex, "Error reloading coordinates");
             StatusMessage = $"Error reloading: {ex.Message}";
+        }
+    }
+
+    [RelayCommand]
+    private void OpenConfigFolder()
+    {
+        try
+        {
+            var folderPath = System.IO.Path.GetDirectoryName(ConfigFilePath);
+            if (!string.IsNullOrEmpty(folderPath) && System.IO.Directory.Exists(folderPath))
+            {
+                System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
+                {
+                    FileName = folderPath,
+                    UseShellExecute = true,
+                    Verb = "open"
+                });
+                StatusMessage = $"Opened folder: {folderPath}";
+                Log.Information("Opened config folder: {Path}", folderPath);
+            }
+            else
+            {
+                StatusMessage = "Config folder not found";
+            }
+        }
+        catch (Exception ex)
+        {
+            Log.Error(ex, "Error opening config folder");
+            StatusMessage = $"Error opening folder: {ex.Message}";
         }
     }
 }

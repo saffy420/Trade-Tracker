@@ -60,18 +60,21 @@ class Program
             services.AddSingleton<IKeyboardService, WindowsKeyboardService>();
             services.AddSingleton<IMacroClickService, WindowsMacroClickService>();
             services.AddSingleton<IScreenCaptureService, WindowsScreenCaptureService>();
+            services.AddSingleton<IGlobalHotkeyService, WindowsGlobalHotkeyService>();
         }
         else if (RuntimeInformation.IsOSPlatform(OSPlatform.OSX))
         {
             services.AddSingleton<IKeyboardService, MacKeyboardService>();
             services.AddSingleton<IMacroClickService, MacMacroClickService>();
             services.AddSingleton<IScreenCaptureService, MacScreenCaptureService>();
+            services.AddSingleton<IGlobalHotkeyService, MacGlobalHotkeyService>();
         }
         else // Linux
         {
             services.AddSingleton<IKeyboardService, LinuxKeyboardService>();
             services.AddSingleton<IMacroClickService, LinuxMacroClickService>();
             services.AddSingleton<IScreenCaptureService, LinuxScreenCaptureService>();
+            services.AddSingleton<IGlobalHotkeyService, LinuxGlobalHotkeyService>();
         }
 
         // ViewModels

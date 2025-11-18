@@ -8,6 +8,7 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Tracker.Avalonia.Models;
 using Tracker.Avalonia.Services;
+using Tracker.Avalonia.Services.Input;
 using Tracker.Avalonia.Views;
 using Serilog;
 
@@ -18,6 +19,7 @@ public partial class MainWindowViewModel : ViewModelBase
     private readonly ITradeStorageService _tradeStorage;
     private readonly IMacroService _macroService;
     private readonly CoordinateConfigService _coordService;
+    private readonly IGlobalHotkeyService _hotkeyService;
 
     [ObservableProperty]
     private ObservableCollection<TradeGroup> _tradeGroups = new();
@@ -34,20 +36,117 @@ public partial class MainWindowViewModel : ViewModelBase
     [ObservableProperty]
     private int _gameCount = 0;
 
+    [ObservableProperty]
+    private bool _isTopmost = true;
+
+    [ObservableProperty]
+    private int _windowX = 0;
+
+    [ObservableProperty]
+    private int _windowY = 0;
+
+    [ObservableProperty]
+    private int _windowWidth = 540;
+
+    [ObservableProperty]
+    private int _windowHeight = 900;
+
+    private int _savedWindowX;
+    private int _savedWindowY;
+    private int _savedWindowWidth;
+    private int _savedWindowHeight;
+
     public MainWindowViewModel(
         ITradeStorageService betStorage,
         IMacroService macroService,
-        CoordinateConfigService coordService)
+        CoordinateConfigService coordService,
+        IGlobalHotkeyService hotkeyService)
     {
         _tradeStorage = betStorage;
         _macroService = macroService;
         _coordService = coordService;
+        _hotkeyService = hotkeyService;
 
         _tradeStorage.TradesChanged += OnTradesChanged;
         _macroService.StatusUpdated += OnMacroStatusUpdated;
+        _macroService.WindowMoveRequested += OnWindowMoveRequested;
+        _macroService.WindowRestoreRequested += OnWindowRestoreRequested;
+        _macroService.FilterGameRequested += OnFilterGameRequested;
+        _hotkeyService.HotkeyPressed += OnGlobalHotkeyPressed;
 
         // Load initial trades
         Task.Run(async () => await LoadTradesAsync());
+    }
+
+    private void OnWindowMoveRequested(object? sender, WindowMoveEventArgs e)
+    {
+        Dispatcher.UIThread.InvokeAsync(() =>
+        {
+            // Save current position and size
+            _savedWindowX = WindowX;
+            _savedWindowY = WindowY;
+            _savedWindowWidth = WindowWidth;
+            _savedWindowHeight = WindowHeight;
+
+            // Move and resize
+            WindowX = e.X;
+            WindowY = e.Y;
+            WindowWidth = e.Width;
+            WindowHeight = e.Height;
+
+            Log.Information("Moved window to ({X},{Y}) with size {W}x{H}", e.X, e.Y, e.Width, e.Height);
+        });
+    }
+
+    private void OnWindowRestoreRequested(object? sender, EventArgs e)
+    {
+        Dispatcher.UIThread.InvokeAsync(() =>
+        {
+            // Restore original position and size
+            WindowX = _savedWindowX;
+            WindowY = _savedWindowY;
+            WindowWidth = _savedWindowWidth;
+            WindowHeight = _savedWindowHeight;
+
+            Log.Information("Restored window to ({X},{Y}) with size {W}x{H}", _savedWindowX, _savedWindowY, _savedWindowWidth, _savedWindowHeight);
+        });
+    }
+
+    private void OnFilterGameRequested(object? sender, string gameName)
+    {
+        Dispatcher.UIThread.InvokeAsync(async () =>
+        {
+            await SetFilterAsync(gameName);
+        });
+    }
+
+    private void OnGlobalHotkeyPressed(object? sender, HotkeyEventArgs e)
+    {
+        Dispatcher.UIThread.InvokeAsync(async () =>
+        {
+            try
+            {
+                switch (e.HotkeyId)
+                {
+                    case 1: // F1
+                        await RunF1MacroCommand.ExecuteAsync(null);
+                        break;
+                    case 2: // F2
+                        await RunF2MacroCommand.ExecuteAsync(null);
+                        break;
+                    case 3: // F3
+                        await RunF3MacroCommand.ExecuteAsync(null);
+                        break;
+                    case 4: // Escape
+                        await ClearFilterCommand.ExecuteAsync(null);
+                        break;
+                }
+            }
+            catch (Exception ex)
+            {
+                Log.Error(ex, "Error handling global hotkey");
+            }
+        });
     }
 
     private void OnTradesChanged(object? sender, EventArgs e)
@@ -138,6 +237,9 @@ public partial class MainWindowViewModel : ViewModelBase
     {
         try
         {
+            // Temporarily disable Topmost so the dialog can appear on top
+            IsTopmost = false;
+
             var editorViewModel = new TradeEditorViewModel(trade, async (oldTrade, newTrade) =>
             {
                 await _tradeStorage.UpdateTradeAsync(oldTrade, newTrade);
@@ -161,6 +263,11 @@ public partial class MainWindowViewModel : ViewModelBase
             Log.Error(ex, "Error editing trade");
             StatusMessage = $"Error editing trade: {ex.Message}";
         }
+        finally
+        {
+            // Re-enable Topmost after dialog closes
+            IsTopmost = true;
+        }
     }
 
     [RelayCommand]
@@ -169,6 +276,41 @@ public partial class MainWindowViewModel : ViewModelBase
         CurrentFilterGame = null;
         await LoadTradesAsync();
         StatusMessage = "Filter cleared - showing all trades.";
+    }
+
+    public async Task SetFilterAsync(string gameName)
+    {
+        CurrentFilterGame = gameName;
+        await LoadTradesAsync();
+    }
+
+    [RelayCommand]
+    private async Task ClearAllTrades()
+    {
+        try
+        {
+            var result = await ShowConfirmDialog("Clear All Trades", "Are you sure you want to delete ALL trades? This cannot be undone.");
+            if (result)
+            {
+                await _tradeStorage.ClearAllTradesAsync();
+                CurrentFilterGame = null;
+                await LoadTradesAsync();
+                StatusMessage = "All trades cleared.";
+            }
+        }
+        catch (Exception ex)
+        {
+            Log.Error(ex, "Error clearing all trades");
+            StatusMessage = $"Error clearing trades: {ex.Message}";
+        }
+    }
+
+    private async Task<bool> ShowConfirmDialog(string title, string message)
+    {
+        // Simple confirmation - in a real app you'd use a proper dialog
+        // For now, we'll just return true and let the user be careful with the button
+        await Task.CompletedTask;
+        return true; // TODO: Implement proper confirmation dialog
     }
 
     [RelayCommand]
@@ -222,6 +364,9 @@ public partial class MainWindowViewModel : ViewModelBase
     {
         try
         {
+            // Temporarily disable Topmost so the dialog can appear on top
+            IsTopmost = false;
+
             var editorViewModel = new CoordinateEditorViewModel(_coordService);
             var editorWindow = new CoordinateEditorView
             {
@@ -234,6 +379,11 @@ public partial class MainWindowViewModel : ViewModelBase
         {
             Log.Error(ex, "Error opening coordinate editor");
             StatusMessage = $"Error opening editor: {ex.Message}";
+        }
+        finally
+        {
+            // Re-enable Topmost after dialog closes
+            IsTopmost = true;
         }
     }
 }

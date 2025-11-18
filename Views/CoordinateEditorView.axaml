@@ -23,7 +23,7 @@
 
         <!-- Toolbar -->
         <Border Grid.Row="1" Background="#23233E" Padding="10">
-            <Grid ColumnDefinitions="*,Auto,Auto,Auto,Auto,Auto">
+            <Grid ColumnDefinitions="*,Auto,Auto,Auto,Auto,Auto,Auto">
                 <!-- Search Box -->
                 <TextBox Grid.Column="0" 
                         Text="{Binding SearchText}"
@@ -56,6 +56,12 @@
                         Margin="0,0,5,0"/>
                 
                 <Button Grid.Column="5" 
+                        Content="Open Folder" 
+                        Command="{Binding OpenConfigFolderCommand}"
+                        Margin="0,0,5,0"
+                        ToolTip.Tip="Open the folder containing coordinates.json"/>
+                
+                <Button Grid.Column="6" 
                         Content="Close" 
                         Click="CloseButton_Click"
                         Background="#C62828"/>
@@ -76,17 +82,17 @@
             
             <DataGrid.Columns>
                 <DataGridTextColumn Header="Category" 
-                                   Binding="{Binding Category}" 
+                                   Binding="{Binding Category, Mode=TwoWay}" 
                                    Width="120"
                                    IsReadOnly="False"/>
                 
                 <DataGridTextColumn Header="Key" 
-                                   Binding="{Binding Key}" 
+                                   Binding="{Binding Key, Mode=TwoWay}" 
                                    Width="*"
                                    IsReadOnly="False"/>
                 
                 <DataGridTextColumn Header="Value" 
-                                   Binding="{Binding Value}" 
+                                   Binding="{Binding Value, Mode=TwoWay}" 
                                    Width="120"
                                    IsReadOnly="False"/>
                 
@@ -114,10 +120,18 @@
 
         <!-- Status Bar -->
         <Border Grid.Row="3" Background="Black" Padding="10,8">
-            <TextBlock Text="{Binding StatusMessage}" 
-                      Foreground="Lime" 
-                      FontSize="11" 
-                      FontFamily="Consolas"/>
+            <StackPanel Spacing="5">
+                <TextBlock Text="{Binding StatusMessage}" 
+                          Foreground="Lime" 
+                          FontSize="11" 
+                          FontFamily="Consolas"/>
+                <TextBlock Foreground="#888888" 
+                          FontSize="9" 
+                          FontFamily="Consolas">
+                    <Run Text="Config file: "/>
+                    <Run Text="{Binding ConfigFilePath}" Foreground="#AAAAAA"/>
+                </TextBlock>
+            </StackPanel>
         </Border>
     </Grid>
 </Window>

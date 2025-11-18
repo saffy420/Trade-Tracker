@@ -261,6 +261,27 @@ public class TradeStorageService : ITradeStorageService, IDisposable
         return grouped;
     }
 
+    public async Task ClearAllTradesAsync()
+    {
+        await _fileLock.WaitAsync();
+        try
+        {
+            // Write empty file
+            await File.WriteAllTextAsync(_tradesFilePath, string.Empty);
+            Log.Information("Cleared all trades from file");
+            TradesChanged?.Invoke(this, EventArgs.Empty);
+        }
+        catch (Exception ex)
+        {
+            Log.Error(ex, "Error clearing all trades");
+            throw;
+        }
+        finally
+        {
+            _fileLock.Release();
+        }
+    }
+
     public void Dispose()
     {
         _fileWatcher?.Dispose();

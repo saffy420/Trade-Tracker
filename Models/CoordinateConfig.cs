@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using Newtonsoft.Json;
+using CommunityToolkit.Mvvm.ComponentModel;
 
 namespace Tracker.Avalonia.Models;
 
@@ -21,53 +22,55 @@ public class CoordinateConfig
     {
         F1Macro = new Dictionary<string, object>
         {
-            ["PlaceTradeOcrX"] = 1268,
-            ["PlaceTradeOcrY"] = 443,
-            ["PlaceTradeOcrWidth"] = 559,
-            ["PlaceTradeOcrHeight"] = 130,
-            ["GameNameX"] = -914,
-            ["GameNameY"] = 167,
-            ["TradeTypeX"] = -914,
-            ["TradeTypeY"] = 192,
+            ["PlaceTradeOcrX"] = 1295,
+            ["PlaceTradeOcrY"] = 271,
+            ["PlaceTradeOcrWidth"] = 375,
+            ["PlaceTradeOcrHeight"] = 306,
+            ["PlaceTradeFallbackX"] = 1540,
+            ["PlaceTradeFallbackY"] = 484,
+            ["GameNameX"] = -910,
+            ["GameNameY"] = 350,
+            ["TradeTypeX"] = -910,
+            ["TradeTypeY"] = 375,
             ["ClickPosition1X"] = -824,
-            ["ClickPosition1Y"] = 530,
-            ["FinalCursorX"] = -206,
-            ["FinalCursorY"] = 23
+            ["ClickPosition1Y"] = 709,
+            ["FinalCursorX"] = -1669,
+            ["FinalCursorY"] = 224
         },
         F2Macro = new Dictionary<string, object>
         {
             ["ButtonX"] = -1225,
-            ["ButtonY"] = 170,
-            ["GameNameX"] = -914,
-            ["GameNameY"] = 167,
+            ["ButtonY"] = 350,
+            ["GameNameX"] = -910,
+            ["GameNameY"] = 350,
             ["NumberX"] = -610,
-            ["NumberY"] = 242,
-            ["TextFieldX"] = 1685,
-            ["TextFieldY"] = 350,
-            ["SearchX"] = 1328,
-            ["SearchY"] = 202,
+            ["NumberY"] = 451,
+            ["TextFieldX"] = 1804,
+            ["TextFieldY"] = 391,
+            ["SearchX"] = 1383,
+            ["SearchY"] = 236,
             ["SearchWidth"] = 415,
             ["SearchHeight"] = 791,
-            ["ClearAllRelX"] = 280,
-            ["ClearAllRelY"] = 37,
+            ["ClearAllX"] = 1698,
+            ["ClearAllY"] = 256,
             ["ClearAllWidth"] = 55,
-            ["ClearAllHeight"] = 16,
+            ["ClearAllHeight"] = 20,
             ["OcrBoxX"] = 1337,
             ["OcrBoxY"] = 337,
             ["OcrBoxWidth"] = 389,
             ["OcrBoxHeight"] = 88,
             ["MaxNumber"] = 40.0,
             ["UiMoveX"] = -1090,
-            ["UiMoveY"] = 250,
+            ["UiMoveY"] = 385,
             ["UiResizeWidth"] = 270,
             ["UiResizeHeight"] = 200
         },
         F3Macro = new Dictionary<string, object>
         {
-            ["ClickX"] = 1351,
-            ["ClickY"] = 342,
-            ["FinalCursorX"] = -206,
-            ["FinalCursorY"] = 23
+            ["ClickX"] = 1404,
+            ["ClickY"] = 378,
+            ["FinalCursorX"] = -1669,
+            ["FinalCursorY"] = 244
         },
         General = new Dictionary<string, object>
         {
@@ -77,11 +80,17 @@ public class CoordinateConfig
     };
 }
 
-public class CoordinateEntry
+public partial class CoordinateEntry : ObservableObject
 {
-    public string Category { get; set; } = string.Empty;
-    public string Key { get; set; } = string.Empty;
-    public double Value { get; set; }
+    [ObservableProperty]
+    private string _category = string.Empty;
+
+    [ObservableProperty]
+    private string _key = string.Empty;
+
+    [ObservableProperty]
+    private double _value;
+
     public string FullKey => $"{Category}.{Key}";
 }
 

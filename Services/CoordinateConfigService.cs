@@ -54,28 +54,54 @@ public class CoordinateConfigService : ICoordinateProvider, IDisposable
 
     private void OnConfigFileChanged(object sender, FileSystemEventArgs e)
     {
-        Thread.Sleep(100); // Debounce
-        LoadConfigFromFile();
-        CoordinatesChanged?.Invoke(this, EventArgs.Empty);
-        Log.Information("Coordinates reloaded from file");
+        // Debounce and ensure file is fully written
+        Thread.Sleep(200);
+        
+        try
+        {
+            LoadConfigFromFile();
+            CoordinatesChanged?.Invoke(this, EventArgs.Empty);
+            Log.Information("Coordinates reloaded from file after external change");
+        }
+        catch (Exception ex)
+        {
+            Log.Error(ex, "Error reloading coordinates from file watcher");
+        }
     }
 
     private void LoadConfigFromFile()
     {
-        try
+        int maxRetries = 3;
+        for (int i = 0; i < maxRetries; i++)
         {
-            var json = File.ReadAllText(_configFilePath);
-            var config = JsonConvert.DeserializeObject<CoordinateConfig>(json);
-            if (config != null)
+            try
             {
-                _config = config;
-                Log.Debug("Loaded coordinate config from file");
+                // Wait a moment to ensure file is readable
+                if (i > 0)
+                {
+                    Thread.Sleep(100);
+                }
+
+                var json = File.ReadAllText(_configFilePath);
+                var config = JsonConvert.DeserializeObject<CoordinateConfig>(json);
+                if (config != null)
+                {
+                    _config = config;
+                    Log.Information("Loaded coordinate config from file (attempt {Attempt})", i + 1);
+                    return;
+                }
             }
-        }
-        catch (Exception ex)
-        {
-            Log.Error(ex, "Error loading coordinate config, using defaults");
-            _config = CoordinateConfig.Default;
+            catch (IOException ex) when (i < maxRetries - 1)
+            {
+                // File might be locked, retry
+                Log.Warning(ex, "Error loading coordinate config (attempt {Attempt}), retrying...", i + 1);
+            }
+            catch (Exception ex)
+            {
+                Log.Error(ex, "Error loading coordinate config, using defaults");
+                _config = CoordinateConfig.Default;
+                return;
+            }
         }
     }
 
@@ -83,13 +109,33 @@ public class CoordinateConfigService : ICoordinateProvider, IDisposable
     {
         try
         {
+            Log.Information("Attempting to save config to: {Path}", _configFilePath);
+            
+            // Temporarily disable file watcher to prevent reload during save
+            _fileWatcher.EnableRaisingEvents = false;
+
             var json = JsonConvert.SerializeObject(config, Formatting.Indented);
+            Log.Debug("Serialized JSON length: {Length} characters", json.Length);
+            
             File.WriteAllText(_configFilePath, json);
-            Log.Information("Saved coordinate config to file");
+            Log.Information("Successfully wrote coordinate config to file: {Path}", _configFilePath);
+
+            // Verify the file was written
+            var fileInfo = new FileInfo(_configFilePath);
+            Log.Information("File size after write: {Size} bytes", fileInfo.Length);
+
+            // Wait a moment to ensure file is written
+            Thread.Sleep(100);
         }
         catch (Exception ex)
         {
-            Log.Error(ex, "Error saving coordinate config");
+            Log.Error(ex, "Error saving coordinate config to {Path}", _configFilePath);
+            throw; // Re-throw to be caught by caller
+        }
+        finally
+        {
+            // Re-enable file watcher
+            _fileWatcher.EnableRaisingEvents = true;
         }
     }
 
@@ -170,6 +216,11 @@ public class CoordinateConfigService : ICoordinateProvider, IDisposable
     public CoordinateConfig GetCurrentConfig()
     {
         return _config;
+    }
+
+    public string GetConfigFilePath()
+    {
+        return _configFilePath;
     }
 
     public void Dispose()
