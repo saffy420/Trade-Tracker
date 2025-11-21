@@ -33,7 +33,10 @@
 
     <Grid RowDefinitions="50,*,40">
         <!-- Custom Title Bar -->
-        <Border Grid.Row="0" Background="#1E1E2E" PointerPressed="TitleBar_PointerPressed">
+        <Border Grid.Row="0" 
+                Background="#1E1E2E" 
+                PointerPressed="TitleBar_PointerPressed"
+                IsVisible="{Binding IsTitleBarVisible}">
             <Grid ColumnDefinitions="*,Auto,Auto,Auto,Auto">
                 <TextBlock Grid.Column="0" 
                           Text="Trade Monitor" 

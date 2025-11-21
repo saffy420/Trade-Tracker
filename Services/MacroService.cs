@@ -49,26 +49,11 @@ public class MacroService : IMacroService
         {
             UpdateStatus("F1 Macro Started.");
 
-            // 1. Find and click "Place Trade"
-            var pbX = _coords.GetInt("F1Macro", "PlaceTradeOcrX");
-            var pbY = _coords.GetInt("F1Macro", "PlaceTradeOcrY");
-            var pbW = _coords.GetInt("F1Macro", "PlaceTradeOcrWidth");
-            var pbH = _coords.GetInt("F1Macro", "PlaceTradeOcrHeight");
-
-            bool foundPlaceTrade = await _ocr.FindTextInRegionAsync("Place Trade", pbX, pbY, pbW, pbH);
-            if (foundPlaceTrade)
-            {
-                await _mouse.LeftClickAsync(pbX + pbW / 2, pbY + pbH / 2);
-                UpdateStatus("Clicked 'Place Trade'.");
-            }
-            else
-            {
-                // Fallback click
-                var fallbackX = _coords.GetInt("F1Macro", "PlaceTradeFallbackX");
-                var fallbackY = _coords.GetInt("F1Macro", "PlaceTradeFallbackY");
-                await _mouse.LeftClickAsync(fallbackX, fallbackY);
-                UpdateStatus($"Fallback: Clicked ({fallbackX}, {fallbackY}).");
-            }
+            // 1. Click "Place Trade" using fallback coordinates
+            var fallbackX = (int)_coords.GetDouble("F1Macro", "PlaceTradeFallbackX", 1525);
+            var fallbackY = (int)_coords.GetDouble("F1Macro", "PlaceTradeFallbackY", 466);
+            await _mouse.LeftClickAsync(fallbackX, fallbackY);
+            UpdateStatus($"Clicked 'Place Trade' at ({fallbackX}, {fallbackY}).");
 
             // 2. Triple-click and copy Game Name
             var gameX = _coords.GetInt("F1Macro", "GameNameX");
@@ -156,6 +141,14 @@ public class MacroService : IMacroService
                 UpdateStatus("Error getting game from clipboard after retries.");
                 return;
             }
+
+            // Check abort after copying game name
+            if (_abortF2)
+            {
+                UpdateStatus("F2 Macro Aborted.");
+                return;
+            }
+
             UpdateStatus($"Copied Game: [{game}]");
 
             // 2.5. Move and resize UI temporarily
@@ -186,6 +179,13 @@ public class MacroService : IMacroService
             FilterGameRequested?.Invoke(this, game);
             UpdateStatus($"🔍 F2: Filtering by game -> [{game}]");
 
+            // Check abort before waiting for page load
+            if (_abortF2)
+            {
+                UpdateStatus("F2 Macro Aborted.");
+                return;
+            }
+
             // 4. Wait for page load - check for "Clear" and OCR box text
             UpdateStatus("Waiting for 'Clear' and OCR box text...");
             var sw = Stopwatch.StartNew();
@@ -212,7 +212,7 @@ public class MacroService : IMacroService
 
                 if (!foundClear)
                 {
-                    foundClear = await _ocr.FindTextInRegionAsync("Clear", clearX, clearY, clearW, clearH);
+                    foundClear = await _ocr.FindTextInRegionAsync("Cl", clearX, clearY, clearW, clearH);
                     if (foundClear) UpdateStatus("'Clear' detected.");
                 }
 
@@ -237,6 +237,13 @@ public class MacroService : IMacroService
                 UpdateStatus("Timeout waiting for page elements (5s). Proceeding...");
             }
 
+            // Check abort after wait loop
+            if (_abortF2)
+            {
+                UpdateStatus("F2 Macro Aborted.");
+                return;
+            }
+
             // 5. Copy number
             var numX = _coords.GetInt("F2Macro", "NumberX");
             var numY = _coords.GetInt("F2Macro", "NumberY");
@@ -246,6 +253,14 @@ public class MacroService : IMacroService
                 UpdateStatus("Error getting number from clipboard after retries.");
                 return;
             }
+
+            // Check abort after copying number
+            if (_abortF2)
+            {
+                UpdateStatus("F2 Macro Aborted.");
+                return;
+            }
+
             UpdateStatus($"Copied Number: [{numberText}]");
 
             // 6. Process number
@@ -270,6 +285,13 @@ public class MacroService : IMacroService
                 UpdateStatus("Failed to parse number.");
             }
 
+            // Check abort before clicking text field
+            if (_abortF2)
+            {
+                UpdateStatus("F2 Macro Aborted.");
+                return;
+            }
+
             // 7. Click text field
             var textFieldX = _coords.GetInt("F2Macro", "TextFieldX");
             var textFieldY = _coords.GetInt("F2Macro", "TextFieldY");
@@ -279,6 +301,13 @@ public class MacroService : IMacroService
             await Task.Delay(25);
             await _mouse.LeftClickAsync(textFieldX, textFieldY);
             UpdateStatus($"Clicked text field at ({textFieldX}, {textFieldY}).");
+
+            // Check abort before pasting
+            if (_abortF2)
+            {
+                UpdateStatus("F2 Macro Aborted.");
+                return;
+            }
 
             // 8. Paste number
             if (numberParsed)
@@ -353,6 +382,12 @@ public class MacroService : IMacroService
     {
         for (int attempt = 0; attempt < maxAttempts; attempt++)
         {
+            // Check abort during retries
+            if (_abortF2)
+            {
+                return string.Empty;
+            }
+
             try
             {
                 // Click elsewhere to remove focus

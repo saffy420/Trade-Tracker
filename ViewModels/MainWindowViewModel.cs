@@ -51,6 +51,9 @@ public partial class MainWindowViewModel : ViewModelBase
     [ObservableProperty]
     private int _windowHeight = 900;
 
+    [ObservableProperty]
+    private bool _isTitleBarVisible = true;
+
     private int _savedWindowX;
     private int _savedWindowY;
     private int _savedWindowWidth;
@@ -88,6 +91,9 @@ public partial class MainWindowViewModel : ViewModelBase
             _savedWindowWidth = WindowWidth;
             _savedWindowHeight = WindowHeight;
 
+            // Hide title bar
+            IsTitleBarVisible = false;
+
             // Move and resize
             WindowX = e.X;
             WindowY = e.Y;
@@ -107,6 +113,9 @@ public partial class MainWindowViewModel : ViewModelBase
             WindowY = _savedWindowY;
             WindowWidth = _savedWindowWidth;
             WindowHeight = _savedWindowHeight;
+
+            // Show title bar again
+            IsTitleBarVisible = true;
 
             Log.Information("Restored window to ({X},{Y}) with size {W}x{H}", _savedWindowX, _savedWindowY, _savedWindowWidth, _savedWindowHeight);
         });
