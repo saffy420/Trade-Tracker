@@ -1,5 +1,5 @@
 using System;
-using System.Diagnostics;
+using System.Runtime.InteropServices;
 using System.Threading.Tasks;
 using TextCopy;
 using Serilog;
@@ -8,16 +8,36 @@ namespace Tracker.Avalonia.Services.Input;
 
 public class MacKeyboardService : IKeyboardService
 {
+    private const int kVK_ANSI_C = 0x08;
+    private const int kVK_ANSI_V = 0x09;
+    private const int kVK_ANSI_A = 0x00;
+    private const int kVK_Return = 0x24;
+    private const int kVK_Tab = 0x30;
+    private const int kVK_Escape = 0x35;
+
+    private const ulong kCGEventFlagMaskCommand = 0x100000;
+
     public async Task SendTextAsync(string text)
     {
         await Task.Run(() =>
         {
             try
             {
-                // Use osascript (AppleScript) to send text
-                var escapedText = text.Replace("\"", "\\\"");
-                var script = $"tell application \"System Events\" to keystroke \"{escapedText}\"";
-                RunAppleScript(script);
+                // Send text character by character using CGEvents
+                foreach (char c in text)
+                {
+                    var keyDownEvent = CGEventCreateKeyboardEvent(IntPtr.Zero, 0, true);
+                    CGEventKeyboardSetUnicodeString(keyDownEvent, 1, new ushort[] { c });
+                    CGEventPost(CGEventTapLocation.HID, keyDownEvent);
+                    CFRelease(keyDownEvent);
+
+                    var keyUpEvent = CGEventCreateKeyboardEvent(IntPtr.Zero, 0, false);
+                    CGEventKeyboardSetUnicodeString(keyUpEvent, 1, new ushort[] { c });
+                    CGEventPost(CGEventTapLocation.HID, keyUpEvent);
+                    CFRelease(keyUpEvent);
+
+                    System.Threading.Thread.Sleep(10); // Small delay between characters
+                }
                 Log.Debug("Sent text via Mac keyboard: {Length} characters", text.Length);
             }
             catch (Exception ex)
@@ -34,17 +54,29 @@ public class MacKeyboardService : IKeyboardService
         {
             try
             {
-                string script = key switch
+                switch (key)
                 {
-                    KeyCode.ControlC => "tell application \"System Events\" to keystroke \"c\" using command down",
-                    KeyCode.ControlV => "tell application \"System Events\" to keystroke \"v\" using command down",
-                    KeyCode.ControlA => "tell application \"System Events\" to keystroke \"a\" using command down",
-                    KeyCode.Enter => "tell application \"System Events\" to keystroke return",
-                    KeyCode.Escape => "tell application \"System Events\" to key code 53",
-                    KeyCode.Tab => "tell application \"System Events\" to keystroke tab",
-                    _ => throw new NotSupportedException($"Key {key} not supported")
-                };
-                RunAppleScript(script);
+                    case KeyCode.ControlC:
+                        SendKeyWithModifier(kVK_ANSI_C, kCGEventFlagMaskCommand);
+                        break;
+                    case KeyCode.ControlV:
+                        SendKeyWithModifier(kVK_ANSI_V, kCGEventFlagMaskCommand);
+                        break;
+                    case KeyCode.ControlA:
+                        SendKeyWithModifier(kVK_ANSI_A, kCGEventFlagMaskCommand);
+                        break;
+                    case KeyCode.Enter:
+                        SendKey(kVK_Return);
+                        break;
+                    case KeyCode.Escape:
+                        SendKey(kVK_Escape);
+                        break;
+                    case KeyCode.Tab:
+                        SendKey(kVK_Tab);
+                        break;
+                    default:
+                        throw new NotSupportedException($"Key {key} not supported");
+                }
                 Log.Debug("Sent keystroke via Mac keyboard: {Key}", key);
             }
             catch (Exception ex)
@@ -53,6 +85,30 @@ public class MacKeyboardService : IKeyboardService
                 throw;
             }
         });
+    }
+
+    private void SendKey(int keyCode)
+    {
+        var keyDownEvent = CGEventCreateKeyboardEvent(IntPtr.Zero, (ushort)keyCode, true);
+        CGEventPost(CGEventTapLocation.HID, keyDownEvent);
+        CFRelease(keyDownEvent);
+
+        var keyUpEvent = CGEventCreateKeyboardEvent(IntPtr.Zero, (ushort)keyCode, false);
+        CGEventPost(CGEventTapLocation.HID, keyUpEvent);
+        CFRelease(keyUpEvent);
+    }
+
+    private void SendKeyWithModifier(int keyCode, ulong modifierFlags)
+    {
+        var keyDownEvent = CGEventCreateKeyboardEvent(IntPtr.Zero, (ushort)keyCode, true);
+        CGEventSetFlags(keyDownEvent, modifierFlags);
+        CGEventPost(CGEventTapLocation.HID, keyDownEvent);
+        CFRelease(keyDownEvent);
+
+        var keyUpEvent = CGEventCreateKeyboardEvent(IntPtr.Zero, (ushort)keyCode, false);
+        CGEventSetFlags(keyUpEvent, modifierFlags);
+        CGEventPost(CGEventTapLocation.HID, keyUpEvent);
+        CFRelease(keyUpEvent);
     }
 
     public async Task<string> GetClipboardTextAsync()
@@ -92,22 +148,27 @@ public class MacKeyboardService : IKeyboardService
         }
     }
 
-    private void RunAppleScript(string script)
+    // P/Invoke declarations for CoreGraphics
+    private enum CGEventTapLocation
     {
-        var process = new Process
-        {
-            StartInfo = new ProcessStartInfo
-            {
-                FileName = "osascript",
-                Arguments = $"-e \"{script}\"",
-                UseShellExecute = false,
-                RedirectStandardOutput = true,
-                RedirectStandardError = true,
-                CreateNoWindow = true
-            }
-        };
-        process.Start();
-        process.WaitForExit();
+        HID = 0,
+        Session = 1,
+        AnnotatedSession = 2
     }
+
+    [DllImport("/System/Library/Frameworks/CoreGraphics.framework/CoreGraphics")]
+    private static extern IntPtr CGEventCreateKeyboardEvent(IntPtr source, ushort virtualKey, bool keyDown);
+
+    [DllImport("/System/Library/Frameworks/CoreGraphics.framework/CoreGraphics")]
+    private static extern void CGEventKeyboardSetUnicodeString(IntPtr eventRef, ulong stringLength, ushort[] unicodeString);
+
+    [DllImport("/System/Library/Frameworks/CoreGraphics.framework/CoreGraphics")]
+    private static extern void CGEventPost(CGEventTapLocation tap, IntPtr eventRef);
+
+    [DllImport("/System/Library/Frameworks/CoreGraphics.framework/CoreGraphics")]
+    private static extern void CGEventSetFlags(IntPtr eventRef, ulong flags);
+
+    [DllImport("/System/Library/Frameworks/CoreFoundation.framework/CoreFoundation")]
+    private static extern void CFRelease(IntPtr cf);
 }
 

@@ -46,10 +46,10 @@ public partial class MainWindowViewModel : ViewModelBase
     private int _windowY = 0;
 
     [ObservableProperty]
-    private int _windowWidth = 540;
+    private int _windowWidth = 315;
 
     [ObservableProperty]
-    private int _windowHeight = 900;
+    private int _windowHeight = 1000;
 
     [ObservableProperty]
     private bool _isTitleBarVisible = true;

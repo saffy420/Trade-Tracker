@@ -41,6 +41,10 @@ public partial class MainWindow : Window
             e.PropertyName == nameof(MainWindowViewModel.WindowY))
         {
             Position = new PixelPoint(viewModel.WindowX, viewModel.WindowY);
+            // Do not force-activate the window after moving it.
+            // For macOS the app activating here will steal focus from the target application
+            // (causing later synthetic clicks to land on this app). Leave activation to
+            // the macro flow (initial clicks) so the correct app retains focus.
         }
     }
 
