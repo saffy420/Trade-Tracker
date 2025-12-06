@@ -2,6 +2,7 @@ using System;
 using System.Diagnostics;
 using System.Text.RegularExpressions;
 using System.Threading;
+using System.Runtime.InteropServices;
 using System.Threading.Tasks;
 using Tracker.Avalonia.Models;
 using Tracker.Avalonia.Services.Input;
@@ -53,11 +54,14 @@ public class MacroService : IMacroService
             var fallbackX = (int)_coords.GetDouble("F1Macro", "PlaceTradeFallbackX", 1525);
             var fallbackY = (int)_coords.GetDouble("F1Macro", "PlaceTradeFallbackY", 466);
             await _mouse.LeftClickAsync(fallbackX, fallbackY);
+            await _mouse.LeftClickAsync(fallbackX, fallbackY);
             UpdateStatus($"Clicked 'Place Trade' at ({fallbackX}, {fallbackY}).");
 
             // 2. Triple-click and copy Game Name
             var gameX = _coords.GetInt("F1Macro", "GameNameX");
             var gameY = _coords.GetInt("F1Macro", "GameNameY");
+            await _mouse.LeftClickAsync(gameX, gameY);
+            await Task.Delay(50);
             await _mouse.TripleClickAsync(gameX, gameY);
             UpdateStatus("Triple-clicked Game Name.");
             await Task.Delay(150);
@@ -126,6 +130,8 @@ public class MacroService : IMacroService
             // 1. Click Button
             var btnX = _coords.GetInt("F2Macro", "ButtonX");
             var btnY = _coords.GetInt("F2Macro", "ButtonY");
+            await _mouse.LeftClickAsync(btnX, btnY-50);
+            await Task.Delay(50);
             await _mouse.LeftClickAsync(btnX, btnY);
             UpdateStatus("Clicked Button.");
 
@@ -186,64 +192,6 @@ public class MacroService : IMacroService
                 return;
             }
 
-            // 4. Wait for page load - check for "Clear" and OCR box text
-            UpdateStatus("Waiting for 'Clear' and OCR box text...");
-            var sw = Stopwatch.StartNew();
-            bool foundClear = false;
-            bool foundOcrText = false;
-
-            var clearX = _coords.GetInt("F2Macro", "ClearAllX");
-            var clearY = _coords.GetInt("F2Macro", "ClearAllY");
-            var clearW = _coords.GetInt("F2Macro", "ClearAllWidth");
-            var clearH = _coords.GetInt("F2Macro", "ClearAllHeight");
-
-            var ocrBoxX = _coords.GetInt("F2Macro", "OcrBoxX");
-            var ocrBoxY = _coords.GetInt("F2Macro", "OcrBoxY");
-            var ocrBoxW = _coords.GetInt("F2Macro", "OcrBoxWidth");
-            var ocrBoxH = _coords.GetInt("F2Macro", "OcrBoxHeight");
-
-            while (sw.ElapsedMilliseconds < 5000)
-            {
-                if (_abortF2)
-                {
-                    UpdateStatus("F2 Macro Aborted.");
-                    return;
-                }
-
-                if (!foundClear)
-                {
-                    foundClear = await _ocr.FindTextInRegionAsync("Cl", clearX, clearY, clearW, clearH);
-                    if (foundClear) UpdateStatus("'Clear' detected.");
-                }
-
-                if (!foundOcrText)
-                {
-                    var ocrText = await _ocr.RecognizeTextFromRegionAsync(ocrBoxX, ocrBoxY, ocrBoxW, ocrBoxH);
-                    foundOcrText = !string.IsNullOrWhiteSpace(ocrText);
-                    if (foundOcrText) UpdateStatus("OCR box text present.");
-                }
-
-                if (foundClear && foundOcrText)
-                {
-                    UpdateStatus("Both 'Clear' and OCR text detected. Page is loaded.");
-                    break;
-                }
-
-                await Task.Delay(250);
-            }
-
-            if (sw.ElapsedMilliseconds >= 5000)
-            {
-                UpdateStatus("Timeout waiting for page elements (5s). Proceeding...");
-            }
-
-            // Check abort after wait loop
-            if (_abortF2)
-            {
-                UpdateStatus("F2 Macro Aborted.");
-                return;
-            }
-
             // 5. Copy number
             var numX = _coords.GetInt("F2Macro", "NumberX");
             var numY = _coords.GetInt("F2Macro", "NumberY");
@@ -285,41 +233,110 @@ public class MacroService : IMacroService
                 UpdateStatus("Failed to parse number.");
             }
 
-            // Check abort before clicking text field
+            // Check abort before starting the polling loop
             if (_abortF2)
             {
                 UpdateStatus("F2 Macro Aborted.");
                 return;
             }
 
-            // 7. Click text field
-            var textFieldX = _coords.GetInt("F2Macro", "TextFieldX");
+            // 4. Wait for page load - run python macro every 250ms with OCR parameters
+            UpdateStatus("Starting python macro polling...");
+            WindowRestoreRequested?.Invoke(this, EventArgs.Empty);
+            UpdateStatus("Restored UI position.");
+            var sw = Stopwatch.StartNew();
+            var textFieldX = _coords.GetInt("F2Macro", "TextFieldX"); // Assuming these coordinates exist
             var textFieldY = _coords.GetInt("F2Macro", "TextFieldY");
-            await _mouse.LeftClickAsync(textFieldX, textFieldY);
-            await Task.Delay(50);
-            await _mouse.LeftClickAsync(textFieldX, textFieldY);
-            await Task.Delay(25);
-            await _mouse.LeftClickAsync(textFieldX, textFieldY);
-            UpdateStatus($"Clicked text field at ({textFieldX}, {textFieldY}).");
+            var clearX = _coords.GetInt("F2Macro", "ClearAllX");
+            var clearY = _coords.GetInt("F2Macro", "ClearAllY");
+            var clearW = _coords.GetInt("F2Macro", "ClearAllWidth");
+            var clearH = _coords.GetInt("F2Macro", "ClearAllHeight");
 
-            // Check abort before pasting
-            if (_abortF2)
+            while (sw.ElapsedMilliseconds < 5000) // Reduced timeout to 5 seconds
             {
-                UpdateStatus("F2 Macro Aborted.");
-                return;
+                if (_abortF2)
+                {
+                    UpdateStatus("F2 Macro Aborted.");
+                    return;
+                }
+
+                try
+                {
+                    var home = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+                    var scriptPath = System.IO.Path.Combine(home, "arvvy", "pyinput_macro.py");
+
+                    var psi = new ProcessStartInfo
+                    {
+                        FileName = "/usr/bin/env",
+                        Arguments = $"python3 \"{scriptPath}\" --x {textFieldX} --y {textFieldY} --ocr-x {clearX} --ocr-y {clearY} --ocr-w {clearW} --ocr-h {clearH}",
+                        RedirectStandardOutput = true,
+                        RedirectStandardError = true,
+                        UseShellExecute = false,
+                        CreateNoWindow = true
+                    };
+
+                    UpdateStatus($"Running python macro with parameters: --x {textFieldX} --y {textFieldY} --ocr-x {clearX} --ocr-y {clearY} --ocr-w {clearW} --ocr-h {clearH}");
+                    using var proc = Process.Start(psi);
+                    if (proc == null)
+                    {
+                        UpdateStatus("Failed to start python macro process.");
+                        await Task.Delay(250);
+                        continue; // Continue polling loop
+                    }
+
+                    // Wait up to 10 seconds for the script to finish
+                    var finished = await Task.Run(() => proc.WaitForExit(10000));
+                    if (!finished)
+                    {
+                        try { proc.Kill(); } catch { }
+                        UpdateStatus("Python macro timed out and was killed.");
+                        await Task.Delay(250);
+                        continue; // Continue polling loop
+                    }
+
+                    var outText = await proc.StandardOutput.ReadToEndAsync();
+                    var errText = await proc.StandardError.ReadToEndAsync();
+                    
+                    if (!string.IsNullOrWhiteSpace(errText))
+                    {
+                        UpdateStatus($"py error: {errText.Trim()}");
+                        await Task.Delay(250);
+                        continue; // Continue polling loop
+                    }
+
+                    if (!string.IsNullOrWhiteSpace(outText))
+                    {
+                        var output = outText.Trim();
+                        if (output == "True")
+                        {
+                            UpdateStatus("Python macro returned true - F2 Macro completed.");
+                            break; // Exit the polling loop
+                        }
+                        else if (output == "False")
+                        {
+                            UpdateStatus("Python macro returned false - continuing polling...");
+                        }
+                        else
+                        {
+                            UpdateStatus($"Python macro returned: {output} - continuing polling...");
+                        }
+                    }
+                    else
+                    {
+                        UpdateStatus("Python macro returned no output - continuing polling...");
+                    }
+                }
+                catch (Exception ex)
+                {
+                    UpdateStatus($"Error running python macro: {ex.Message} - continuing polling...");
+                }
+
+                await Task.Delay(250); // Wait 250ms before next iteration
             }
 
-            // 8. Paste number
-            if (numberParsed)
+            if (sw.ElapsedMilliseconds >= 5000)
             {
-                await Task.Delay(150);
-                string numberString = finalNumber.ToString("G15");
-                await _keyboard.SendTextAsync(numberString);
-                UpdateStatus($"Pasted number: {numberString}.");
-            }
-            else
-            {
-                UpdateStatus("Number was not valid, paste skipped.");
+                UpdateStatus("Timeout waiting for python macro to return true (5s).");
             }
 
             await _keyboard.ClearClipboardAsync();
@@ -360,6 +377,7 @@ public class MacroService : IMacroService
             // 3. Move cursor
             var finalX = _coords.GetInt("F3Macro", "FinalCursorX");
             var finalY = _coords.GetInt("F3Macro", "FinalCursorY");
+            await _mouse.LeftClickAsync(finalX, finalY);
             await _mouse.MoveCursorAsync(finalX, finalY);
             UpdateStatus($"Cursor moved to ({finalX}, {finalY}).");
 
@@ -419,4 +437,3 @@ public class MacroService : IMacroService
         return string.Empty;
     }
 }
-
