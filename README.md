@@ -1,19 +1,31 @@
-# Trade Tracker - Cross-Platform Edition
+# Trade Tracker
 
-A fully cross-platform desktop application for tracking trades and placing trades, built with Avalonia UI and .NET 8.
+A cross-platform desktop application for tracking and placing trades, built with Avalonia UI and .NET 8.
 
-## Why did I create this
-This all started with a desire to make my life easier. A +EV trade would pop up on my dashboard, i would click it, evaluate it, then go over to my second monitor and have to enter in the right numbers and place the trade. This created a mundane and slow process, which would end up costing me time and opportunity. With this tool, I could lay back, press a button with my mouse, and have the trade place for me within a second. It narrowed my focus down to one thing, rather than 4. At first, it was a one day project that worked well enough for me but ended up turning into a one month project that went cross-platform so i could use it with my Mac Minis and my Windows desktop. 
+## Why I Built This
+
+This started with wanting to make my own life easier. A +EV trade would pop up on my dashboard, I would click it, evaluate it, then go over to my second monitor and have to enter in the right numbers and place the trade. It was slow and repetitive, and it was costing me time and opportunity. With this tool, I could just press a button and have the trade placed for me within a second. It took my focus down from four things at once to just one.
+
+What started as a one-day project that barely worked ended up turning into a one-month project. I wanted it to run on my Mac Minis and my Windows desktop, so it needed to be cross-platform. That decision is what made it a real project.
+
+## What I Learned
+
+Going cross-platform was harder than I expected. I had to learn how to write platform-specific code (keyboard input, screen capture, mouse automation) behind shared interfaces so the same core logic could run on Windows, macOS, and Linux without rewriting everything three times.
+
+I also learned MVVM properly for the first time. Before this I was just shoving all the logic into code-behind files, which gets messy fast. Using the MVVM pattern here made the code a lot easier to follow and change.
+
+OCR was something I had never touched before. Getting Tesseract to reliably read small text off a screen required a lot of preprocessing tweaking. I spent more time on that than I expected.
+
+The biggest takeaway was probably how much a small project can grow once you start actually using it. It works fine for one platform, then you want to use it on another machine, then another, and suddenly you're rewriting the whole input layer.
 
 ## Features
 
 - **Cross-Platform**: Runs on Windows, macOS, and Linux
-- **Modern UI**: Dark-themed, responsive interface with MVVM architecture
 - **Automated Macros**: F1, F2, F3 hotkeys for automated trade tracking workflows
 - **OCR Integration**: Tesseract OCR for reading screen text
-- **Configurable Coordinates**: Edit all macro coordinates via built-in editor
+- **Configurable Coordinates**: Edit all macro coordinates via a built-in editor
 - **Live Reload**: Configuration changes apply without restart
-- **Trade Management**: Group trades by game, filter, and delete as needed
+- **Trade Management**: Trades are grouped by game, with filtering and deletion
 
 ## Requirements
 
@@ -21,7 +33,7 @@ This all started with a desire to make my life easier. A +EV trade would pop up 
 - .NET 8.0 SDK or Runtime
 - Tesseract OCR (included in build)
 
-### Linux-Specific
+### Linux
 - `xdotool` for keyboard/mouse automation: `sudo apt install xdotool`
 - `scrot` or `imagemagick` for screen capture: `sudo apt install scrot`
 
@@ -32,37 +44,33 @@ This all started with a desire to make my life easier. A +EV trade would pop up 
 ## Building from Source
 
 ```bash
-# Clone or extract the project
 cd Tracker.Avalonia
 
-# Restore dependencies
 dotnet restore
 
-# Build
 dotnet build -c Release
 
-# Run
 dotnet run
 ```
 
 ## Publishing
 
-### Windows (Self-Contained)
+### Windows
 ```bash
 dotnet publish -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true
 ```
 
-### macOS (Self-Contained)
+### macOS
 ```bash
 dotnet publish -c Release -r osx-x64 --self-contained true -p:PublishSingleFile=true
 ```
 
-### Linux (Self-Contained)
+### Linux
 ```bash
 dotnet publish -c Release -r linux-x64 --self-contained true -p:PublishSingleFile=true
 ```
 
-The output will be in `bin/Release/net8.0/{runtime}/publish/`
+Output goes to `bin/Release/net8.0/{runtime}/publish/`
 
 ## Usage
 
@@ -73,16 +81,15 @@ The output will be in `bin/Release/net8.0/{runtime}/publish/`
 - **Escape**: Clear active filter and show all trades
 
 ### Coordinate Editor
-Click the **Settings** icon (⚙️) in the title bar to open the Coordinate Editor where you can:
+Click the Settings icon in the title bar to open the Coordinate Editor where you can:
 - View all macro coordinates
 - Edit X/Y values for click positions
 - Add new coordinate entries
 - Delete unused coordinates
-- Test coordinates (displays value)
 - Save changes (live reload, no restart needed)
 
 ### Trade Management
-- Right-click any trade to **Delete** it
+- Right-click any trade to delete it
 - Trades are grouped by game automatically
 - Filter is applied during F2 macro and cleared by F3 or Escape
 
@@ -90,55 +97,38 @@ Click the **Settings** icon (⚙️) in the title bar to open the Coordinate Edi
 
 ### Trades File Location
 - **Windows**: `%APPDATA%\TradeTracker\trades.txt`
-- **macOS/Linux**: `~/.config/TradeTracker/trades.txt` or `~/.local/share/TradeTracker/trades.txt`
+- **macOS/Linux**: `~/.config/TradeTracker/trades.txt`
 
 The app automatically migrates from the old location (`Documents/trades.txt`) on first run.
 
-### Coordinates Configuration
-Edit via the built-in Coordinate Editor or directly:
-- File: `Config/coordinates.json` (next to executable)
-- Changes are detected automatically and reloaded
+### Coordinates
+Edit via the built-in Coordinate Editor or directly in `Config/coordinates.json` (next to the executable). Changes are detected automatically and reloaded.
 
 ### Logs
-Application logs are saved to: `logs/tracker-YYYYMMDD.log`
+Application logs are saved to `logs/tracker-YYYYMMDD.log`
 
 ## Troubleshooting
 
 ### Tesseract OCR Errors
-Ensure the `tessdata` folder exists next to the executable with `eng.traineddata` inside.
+Make sure the `tessdata` folder exists next to the executable with `eng.traineddata` inside.
 
 ### Linux Automation Not Working
-Install required tools:
 ```bash
 sudo apt install xdotool scrot
 ```
 
-### macOS Automation Permissions
-Grant accessibility permissions in System Preferences → Security & Privacy → Privacy → Accessibility
+### macOS Accessibility Permissions
+Grant accessibility permissions in System Preferences > Security and Privacy > Privacy > Accessibility.
 
 ## Architecture
 
-### MVVM Structure
 - **Models**: `Trade`, `TradeGroup`, `CoordinateConfig`
 - **ViewModels**: `MainWindowViewModel`, `CoordinateEditorViewModel`
 - **Views**: `MainWindow`, `CoordinateEditorView`
-- **Services**: Abstracted platform-specific functionality
-
-### Services
-- `TradeStorageService`: File I/O for trades
-- `CoordinateConfigService`: Config management with live reload
-- `MacroService`: F1/F2/F3 macro orchestration
-- `OcrService`: Tesseract wrapper
-- `IKeyboardService`, `IMacroClickService`, `IScreenCaptureService`: Platform-specific implementations
-
-## License
-
-This project is provided as-is for personal use.
+- **Services**: `TradeStorageService`, `CoordinateConfigService`, `MacroService`, `OcrService`, and platform-specific input implementations
 
 ## Credits
 
-Built with:
 - [Avalonia UI](https://avaloniaui.net/)
 - [Tesseract OCR](https://github.com/tesseract-ocr/tesseract)
 - [CommunityToolkit.Mvvm](https://learn.microsoft.com/en-us/dotnet/communitytoolkit/mvvm/)
-
