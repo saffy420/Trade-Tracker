@@ -1,6 +1,9 @@
 # Trade Tracker - Cross-Platform Edition
 
-A fully cross-platform desktop application for tracking trades, built with Avalonia UI and .NET 8.
+A fully cross-platform desktop application for tracking trades and placing trades, built with Avalonia UI and .NET 8.
+
+## Why did I create this
+This all started with a desire to make my life easier. A +EV trade would pop up on my dashboard, i would click it, evaluate it, then go over to my second monitor and have to enter in the right numbers and place the trade. This created a mundane and slow process, which would end up costing me time and opportunity. With this tool, I could lay back, press a button with my mouse, and have the trade place for me within a second. It narrowed my focus down to one thing, rather than 4. At first, it was a one day project that worked well enough for me but ended up turning into a one month project that went cross-platform so i could use it with my Mac Minis and my Windows desktop. 
 
 ## Features
 
