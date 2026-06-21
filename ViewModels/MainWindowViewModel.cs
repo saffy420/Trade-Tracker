@@ -60,12 +60,12 @@ public partial class MainWindowViewModel : ViewModelBase
     private int _savedWindowHeight;
 
     public MainWindowViewModel(
-        ITradeStorageService betStorage,
+        ITradeStorageService tradeStorage,
         IMacroService macroService,
         CoordinateConfigService coordService,
         IGlobalHotkeyService hotkeyService)
     {
-        _tradeStorage = betStorage;
+        _tradeStorage = tradeStorage;
         _macroService = macroService;
         _coordService = coordService;
         _hotkeyService = hotkeyService;
@@ -172,12 +172,12 @@ public partial class MainWindowViewModel : ViewModelBase
     {
         try
         {
-            var betsDict = await _tradeStorage.GetTradesByGameAsync();
+            var tradesDict = await _tradeStorage.GetTradesByGameAsync();
 
             if (CurrentFilterGame == null)
             {
                 // Show all trades grouped by game
-                var groups = betsDict
+                var groups = tradesDict
                     .OrderByDescending(kvp => kvp.Value.Count)
                     .Select(kvp => new TradeGroup
                     {
@@ -187,15 +187,15 @@ public partial class MainWindowViewModel : ViewModelBase
                     .ToList();
 
                 TradeGroups = new ObservableCollection<TradeGroup>(groups);
-                TotalTradeCount = betsDict.Values.Sum(list => list.Count);
-                GameCount = betsDict.Count;
+                TotalTradeCount = tradesDict.Values.Sum(list => list.Count);
+                GameCount = tradesDict.Count;
                 StatusMessage = $"Showing {TotalTradeCount} trades across {GameCount} games";
             }
             else
             {
                 // Filter to specific game
                 var normalizedFilter = new Trade { Game = CurrentFilterGame }.NormalizedGame;
-                if (betsDict.TryGetValue(normalizedFilter, out var markets))
+                if (tradesDict.TryGetValue(normalizedFilter, out var markets))
                 {
                     TradeGroups = new ObservableCollection<TradeGroup>
                     {

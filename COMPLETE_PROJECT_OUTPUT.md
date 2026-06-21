@@ -238,7 +238,7 @@ public class Trade
 
     public override bool Equals(object? obj)
     {
-        if (obj is Tradeother)
+        if (obj is Trade other)
         {
             return string.Equals(NormalizedGame, other.NormalizedGame, StringComparison.OrdinalIgnoreCase) &&
                    string.Equals(Market.Trim(), other.Market.Trim(), StringComparison.OrdinalIgnoreCase);

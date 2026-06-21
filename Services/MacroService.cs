@@ -29,13 +29,13 @@ public class MacroService : IMacroService
         IKeyboardService keyboard,
         IMacroClickService mouse,
         IOcrService ocr,
-        ITradeStorageService betStorage)
+        ITradeStorageService tradeStorage)
     {
         _coords = coords;
         _keyboard = keyboard;
         _mouse = mouse;
         _ocr = ocr;
-        _tradeStorage = betStorage;
+        _tradeStorage = tradeStorage;
     }
 
     private void UpdateStatus(string message)
@@ -74,9 +74,9 @@ public class MacroService : IMacroService
             UpdateStatus($"Copied Game: [{game}]");
 
             // 3. Triple-click and copy Trade Type
-            var betX = _coords.GetInt("F1Macro", "TradeTypeX");
-            var betY = _coords.GetInt("F1Macro", "TradeTypeY");
-            await _mouse.TripleClickAsync(betX, betY);
+            var tradeX = _coords.GetInt("F1Macro", "TradeTypeX");
+            var tradeY = _coords.GetInt("F1Macro", "TradeTypeY");
+            await _mouse.TripleClickAsync(tradeX, tradeY);
             UpdateStatus("Triple-clicked Trade Type.");
             await Task.Delay(150);
 
